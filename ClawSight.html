@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClawSight Telemetry v1.4</title>
+    <title>ClawSight Telemetry v1.5</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
         :root {
@@ -70,7 +70,7 @@
         .stat-val { font-size: 22px; font-weight: 700; color: var(--accent); }
         .stat-lbl { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
 
-        #file-selector-container {
+        #auto-mount-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             background: rgba(0,0,0,0.95);
@@ -80,33 +80,19 @@
             justify-content: center;
             z-index: 9999;
         }
-        .mount-btn {
-            background: var(--accent);
-            color: #000;
-            padding: 15px 40px;
-            border-radius: 4px;
-            font-weight: 800;
-            cursor: pointer;
-            border: none;
-            font-size: 14px;
-            transition: transform 0.2s;
-        }
-        .mount-btn:hover { transform: scale(1.05); }
     </style>
 </head>
 <body>
 
-    <div id="file-selector-container">
-        <h2 style="color:var(--accent); letter-spacing: 2px;">CLAWSIGHT ENGINE v1.4</h2>
-        <p style="color:var(--text-dim); margin-bottom: 30px;">Direct Link established. Select session log to initialize telemetry.</p>
-        <button class="mount-btn" onclick="document.getElementById('hidden-input').click()">MOUNT SESSION LOG (.jsonl)</button>
-        <input type="file" id="hidden-input" style="display:none" accept=".jsonl">
-        <p style="font-size:10px; margin-top: 20px; color: #555;">Path: .openclaw/agents/main/sessions/</p>
+    <div id="auto-mount-overlay">
+        <h2 style="color:var(--accent); letter-spacing: 2px;">CLAWSIGHT ENGINE v1.5</h2>
+        <p id="boot-status" style="color:var(--text-dim); margin-bottom: 30px;">Initializing Zero-Config Discovery...</p>
+        <div style="font-size:10px; color: #444;">Connected via Local Proxy (18798)</div>
     </div>
 
     <div id="header">
-        <div class="logo">CLAWSIGHT <span style="font-size:10px; opacity:0.5; font-weight:400; vertical-align:middle; margin-left:10px;">V1.4</span></div>
-        <div id="connection-status" style="font-size:11px; color:var(--text-dim)">DISCONNECTED</div>
+        <div class="logo">CLAWSIGHT <span style="font-size:10px; opacity:0.5; font-weight:400; vertical-align:middle; margin-left:10px;">V1.5 (AUTO)</span></div>
+        <div id="connection-status" style="font-size:11px; color:var(--text-dim)">CONNECTING...</div>
     </div>
 
     <div id="main-layout">
@@ -117,9 +103,8 @@
             <div id="viz-view">
                 <div class="mermaid" id="mermaid-container">
                     graph TD
-                    A[Session Start] --> B[Processing Request]
-                    B --> C[Executing Action]
-                    C --> D[Validating Result]
+                    A[Session Start] --> B[Auto-Discovery]
+                    B --> C[Telemetry Live]
                 </div>
             </div>
         </div>
@@ -137,37 +122,43 @@
                 <div id="active-agent" style="font-weight:bold; color:var(--accent)">ORCHESTRATOR</div>
                 <div class="stat-lbl">ACTIVE AGENT</div>
             </div>
-            <div style="margin-top: auto; font-size: 10px; color: #444; text-align: center;">
-                Zero-Token Architecture Enabled
-            </div>
         </div>
     </div>
 
     <script>
-        const input = document.getElementById('hidden-input');
-        const selector = document.getElementById('file-selector-container');
+        const overlay = document.getElementById('auto-mount-overlay');
         const logView = document.getElementById('log-view');
         const status = document.getElementById('connection-status');
         const tokenDisplay = document.getElementById('token-count');
+        const bootStatus = document.getElementById('boot-status');
 
-        input.addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            selector.style.display = 'none';
-            status.innerText = "STREAMING: " + file.name;
-            status.style.color = "var(--accent)";
-            startTail(file);
-        });
+        async function init() {
+            try {
+                bootStatus.innerText = "Attempting to link with ClawSight Local Server...";
+                // Polling loop
+                setInterval(pollLogs, 2000);
+            } catch (e) {
+                bootStatus.innerText = "Error: Local Server not running. Please run ClawSight_Server.ps1";
+            }
+        }
 
-        function startTail(file) {
-            const reader = new FileReader();
-            setInterval(() => {
-                reader.onload = (e) => {
-                    const lines = e.target.result.split('\n').filter(l => l.trim());
-                    processBatch(lines.slice(-60)); 
-                };
-                reader.readAsText(file);
-            }, 1500);
+        async function pollLogs() {
+            try {
+                const response = await fetch('/logs');
+                if (!response.ok) throw new Error("Server not responding");
+                
+                const text = await response.text();
+                const lines = text.split('\n').filter(l => l.trim());
+                
+                if (lines.length > 0) {
+                    overlay.style.display = 'none';
+                    status.innerText = "STREAMING ACTIVE";
+                    status.style.color = "var(--accent)";
+                    processBatch(lines.slice(-60));
+                }
+            } catch (e) {
+                console.error("Poll error:", e);
+            }
         }
 
         function processBatch(lines) {
@@ -182,7 +173,6 @@
 
                     const msg = data.message;
                     if (msg) {
-                        // Capture Tokens from usage block
                         if (msg.usage && msg.usage.totalTokens) {
                             lastTokens = Math.max(lastTokens, msg.usage.totalTokens);
                         }
@@ -190,14 +180,14 @@
                         if (msg.role === 'user') {
                             div.className += ' log-user';
                             const textContent = msg.content.map(c => c.text || '').join('');
-                            div.innerHTML = `<span style="opacity:0.6">[USER]</span> ${textContent.substring(0, 200)}${textContent.length > 200 ? '...' : ''}`;
+                            div.innerHTML = `<span style="opacity:0.6">[USER]</span> ${textContent.substring(0, 150)}...`;
                         } else if (msg.role === 'assistant') {
                             let contentHtml = '';
                             msg.content.forEach(c => {
                                 if (c.type === 'toolCall') {
                                     contentHtml += `<div class="log-tool">ACTION: Calling ${c.name}</div>`;
                                 } else if (c.text) {
-                                    contentHtml += `<div class="log-text">${c.text.substring(0, 150)}...</div>`;
+                                    contentHtml += `<div class="log-text">${c.text.substring(0, 100)}...</div>`;
                                 }
                             });
                             div.innerHTML = contentHtml;
@@ -205,19 +195,16 @@
                             div.className += ' log-system';
                             div.innerHTML = `<span style="opacity:0.6">[TOOL RESULT]</span> ${msg.toolName} executed.`;
                         }
-                    } else {
-                        div.className += ' log-system';
-                        div.innerText = 'System event detected.';
                     }
-
                     if (div.innerHTML) logView.appendChild(div);
                 } catch(e) {}
             });
             
-            tokenDisplay.innerText = lastTokens > 0 ? lastTokens.toLocaleString() : tokenDisplay.innerText;
+            tokenDisplay.innerText = lastTokens.toLocaleString();
             logView.scrollTop = logView.scrollHeight;
         }
 
+        init();
         mermaid.initialize({ startOnLoad: true, theme: 'dark' });
     </script>
 </body>
