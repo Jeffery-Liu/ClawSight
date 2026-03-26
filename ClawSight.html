@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClawSight Telemetry v1.3</title>
+    <title>ClawSight Telemetry v1.4</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
         :root {
@@ -57,10 +57,12 @@
         }
 
         #log-view { flex: 1; padding: 20px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 13px; line-height: 1.6; }
-        .log-line { margin-bottom: 10px; padding-left: 15px; border-left: 1px solid #333; }
-        .log-thought { color: var(--accent); font-weight: bold; }
-        .log-tool { color: #cc99ff; }
-        .log-system { opacity: 0.5; font-style: italic; }
+        .log-line { margin-bottom: 12px; padding-left: 15px; border-left: 2px solid #333; }
+        .log-thought { color: var(--accent); font-weight: bold; margin-bottom: 4px; display: block; }
+        .log-tool { color: #cc99ff; font-weight: bold; }
+        .log-user { color: #ffffff; border-left-color: var(--accent); }
+        .log-system { opacity: 0.5; font-style: italic; border-left-style: dashed; }
+        .log-text { color: #ccc; }
 
         #viz-view { height: 300px; padding: 20px; background: #000; border-top: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 
@@ -71,7 +73,7 @@
         #file-selector-container {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.95);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -87,34 +89,37 @@
             cursor: pointer;
             border: none;
             font-size: 14px;
+            transition: transform 0.2s;
         }
+        .mount-btn:hover { transform: scale(1.05); }
     </style>
 </head>
 <body>
 
     <div id="file-selector-container">
-        <h2 style="color:var(--accent)">CLAWSIGHT ENGINE v1.3</h2>
-        <p style="color:var(--text-dim); margin-bottom: 30px;">Security Check: Please select your OpenClaw session log to begin telemetry.</p>
-        <button class="mount-btn" onclick="document.getElementById('hidden-input').click()">SELECT SESSION LOG (.jsonl)</button>
+        <h2 style="color:var(--accent); letter-spacing: 2px;">CLAWSIGHT ENGINE v1.4</h2>
+        <p style="color:var(--text-dim); margin-bottom: 30px;">Direct Link established. Select session log to initialize telemetry.</p>
+        <button class="mount-btn" onclick="document.getElementById('hidden-input').click()">MOUNT SESSION LOG (.jsonl)</button>
         <input type="file" id="hidden-input" style="display:none" accept=".jsonl">
-        <p style="font-size:10px; margin-top: 20px; color: #555;">(Logs are usually found in .openclaw/agents/main/sessions/)</p>
+        <p style="font-size:10px; margin-top: 20px; color: #555;">Path: .openclaw/agents/main/sessions/</p>
     </div>
 
     <div id="header">
-        <div class="logo">CLAWSIGHT</div>
+        <div class="logo">CLAWSIGHT <span style="font-size:10px; opacity:0.5; font-weight:400; vertical-align:middle; margin-left:10px;">V1.4</span></div>
         <div id="connection-status" style="font-size:11px; color:var(--text-dim)">DISCONNECTED</div>
     </div>
 
     <div id="main-layout">
         <div class="viewport">
-            <div class="panel-header">Autonomous Thought Stream</div>
+            <div class="panel-header">Autonomous Log Stream</div>
             <div id="log-view"></div>
-            <div class="panel-header">Workflow Pipeline Visualization</div>
+            <div class="panel-header">Task Pipeline Visualization</div>
             <div id="viz-view">
                 <div class="mermaid" id="mermaid-container">
                     graph TD
-                    A[Start] --> B[Task In Progress]
-                    B --> C[Validation]
+                    A[Session Start] --> B[Processing Request]
+                    B --> C[Executing Action]
+                    C --> D[Validating Result]
                 </div>
             </div>
         </div>
@@ -122,15 +127,18 @@
         <div class="sidebar">
             <div class="stat-card">
                 <div class="stat-val" id="token-count">0</div>
-                <div class="stat-lbl">TOKENS CONSUMED</div>
+                <div class="stat-lbl">TOTAL TOKENS CONSUMED</div>
             </div>
             <div class="stat-card">
                 <div class="stat-val" id="health-pct">100%</div>
-                <div class="stat-lbl">AGENT LIKELIHOOD</div>
+                <div class="stat-lbl">AGENT STATUS</div>
             </div>
             <div class="stat-card">
                 <div id="active-agent" style="font-weight:bold; color:var(--accent)">ORCHESTRATOR</div>
-                <div class="stat-lbl">ACTIVE IDENTITY</div>
+                <div class="stat-lbl">ACTIVE AGENT</div>
+            </div>
+            <div style="margin-top: auto; font-size: 10px; color: #444; text-align: center;">
+                Zero-Token Architecture Enabled
             </div>
         </div>
     </div>
@@ -156,15 +164,15 @@
             setInterval(() => {
                 reader.onload = (e) => {
                     const lines = e.target.result.split('\n').filter(l => l.trim());
-                    processBatch(lines.slice(-50)); // Increase window to 50 lines
+                    processBatch(lines.slice(-60)); 
                 };
                 reader.readAsText(file);
-            }, 1000);
+            }, 1500);
         }
 
         function processBatch(lines) {
             logView.innerHTML = '';
-            let totalTokens = 0;
+            let lastTokens = 0;
 
             lines.forEach(line => {
                 try {
@@ -172,29 +180,41 @@
                     const div = document.createElement('div');
                     div.className = 'log-line';
 
-                    // Parse Thought
-                    if (data.thought) {
-                        div.innerHTML = `<span class="log-thought">THOUGHT:</span> ${data.thought}`;
-                    } 
-                    // Parse Tool Calls
-                    else if (data.tool_call) {
-                        div.innerHTML = `<span class="log-tool">ACTION:</span> Calling ${data.tool_call.name}`;
-                    }
-                    // Parse Metrics (OpenClaw specific usage blocks)
-                    if (data.usage && data.usage.total_tokens) {
-                        totalTokens = data.usage.total_tokens;
-                    }
+                    const msg = data.message;
+                    if (msg) {
+                        // Capture Tokens from usage block
+                        if (msg.usage && msg.usage.totalTokens) {
+                            lastTokens = Math.max(lastTokens, msg.usage.totalTokens);
+                        }
 
-                    if (!data.thought && !data.tool_call) {
+                        if (msg.role === 'user') {
+                            div.className += ' log-user';
+                            const textContent = msg.content.map(c => c.text || '').join('');
+                            div.innerHTML = `<span style="opacity:0.6">[USER]</span> ${textContent.substring(0, 200)}${textContent.length > 200 ? '...' : ''}`;
+                        } else if (msg.role === 'assistant') {
+                            let contentHtml = '';
+                            msg.content.forEach(c => {
+                                if (c.type === 'toolCall') {
+                                    contentHtml += `<div class="log-tool">ACTION: Calling ${c.name}</div>`;
+                                } else if (c.text) {
+                                    contentHtml += `<div class="log-text">${c.text.substring(0, 150)}...</div>`;
+                                }
+                            });
+                            div.innerHTML = contentHtml;
+                        } else if (msg.role === 'toolResult') {
+                            div.className += ' log-system';
+                            div.innerHTML = `<span style="opacity:0.6">[TOOL RESULT]</span> ${msg.toolName} executed.`;
+                        }
+                    } else {
                         div.className += ' log-system';
                         div.innerText = 'System event detected.';
                     }
 
-                    logView.appendChild(div);
+                    if (div.innerHTML) logView.appendChild(div);
                 } catch(e) {}
             });
             
-            tokenDisplay.innerText = totalTokens.toLocaleString();
+            tokenDisplay.innerText = lastTokens > 0 ? lastTokens.toLocaleString() : tokenDisplay.innerText;
             logView.scrollTop = logView.scrollHeight;
         }
 
