@@ -25,6 +25,8 @@ Create a zero-token, cross-platform telemetry dashboard for OpenClaw agents.
 - [x] Core UI Prototype Design
 - [x] Log-Polling Logic Implementation
 - [x] Mermaid.js Pipeline Visualization (v1.2 Initial)
+- [x] Real-time Token & Parsing Logic Fix (v1.3)
 - [ ] Automated State Syncing Logic (Next)
+- [ ] Self-Reporting Notification System (In-Progress)
 - [ ] Multilingual Documentation Generation
 - [ ] Final Deployment to GitHub

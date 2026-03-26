@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClawSight Telemetry v1.2</title>
+    <title>ClawSight Telemetry v1.3</title>
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
         :root {
@@ -60,6 +60,7 @@
         .log-line { margin-bottom: 10px; padding-left: 15px; border-left: 1px solid #333; }
         .log-thought { color: var(--accent); font-weight: bold; }
         .log-tool { color: #cc99ff; }
+        .log-system { opacity: 0.5; font-style: italic; }
 
         #viz-view { height: 300px; padding: 20px; background: #000; border-top: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 
@@ -92,11 +93,11 @@
 <body>
 
     <div id="file-selector-container">
-        <h2 style="color:var(--accent)">CLAWSIGHT ENGINE v1.2</h2>
+        <h2 style="color:var(--accent)">CLAWSIGHT ENGINE v1.3</h2>
         <p style="color:var(--text-dim); margin-bottom: 30px;">Security Check: Please select your OpenClaw session log to begin telemetry.</p>
         <button class="mount-btn" onclick="document.getElementById('hidden-input').click()">SELECT SESSION LOG (.jsonl)</button>
         <input type="file" id="hidden-input" style="display:none" accept=".jsonl">
-        <p style="font-size:10px; margin-top: 20px; color: #555;">(Logs are usually found in .openclaw/sessions/)</p>
+        <p style="font-size:10px; margin-top: 20px; color: #555;">(Logs are usually found in .openclaw/agents/main/sessions/)</p>
     </div>
 
     <div id="header">
@@ -110,7 +111,7 @@
             <div id="log-view"></div>
             <div class="panel-header">Workflow Pipeline Visualization</div>
             <div id="viz-view">
-                <div class="mermaid">
+                <div class="mermaid" id="mermaid-container">
                     graph TD
                     A[Start] --> B[Task In Progress]
                     B --> C[Validation]
@@ -139,6 +140,7 @@
         const selector = document.getElementById('file-selector-container');
         const logView = document.getElementById('log-view');
         const status = document.getElementById('connection-status');
+        const tokenDisplay = document.getElementById('token-count');
 
         input.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -154,7 +156,7 @@
             setInterval(() => {
                 reader.onload = (e) => {
                     const lines = e.target.result.split('\n').filter(l => l.trim());
-                    processBatch(lines.slice(-30));
+                    processBatch(lines.slice(-50)); // Increase window to 50 lines
                 };
                 reader.readAsText(file);
             }, 1000);
@@ -162,17 +164,37 @@
 
         function processBatch(lines) {
             logView.innerHTML = '';
+            let totalTokens = 0;
+
             lines.forEach(line => {
                 try {
                     const data = JSON.parse(line);
                     const div = document.createElement('div');
                     div.className = 'log-line';
-                    if (data.thought) div.innerHTML = `<span class="log-thought">THOUGHT:</span> ${data.thought}`;
-                    else if (data.tool_call) div.innerHTML = `<span class="log-tool">ACTION:</span> Calling ${data.tool_call.name}`;
-                    else div.style.opacity = '0.4', div.innerText = 'System message received.';
+
+                    // Parse Thought
+                    if (data.thought) {
+                        div.innerHTML = `<span class="log-thought">THOUGHT:</span> ${data.thought}`;
+                    } 
+                    // Parse Tool Calls
+                    else if (data.tool_call) {
+                        div.innerHTML = `<span class="log-tool">ACTION:</span> Calling ${data.tool_call.name}`;
+                    }
+                    // Parse Metrics (OpenClaw specific usage blocks)
+                    if (data.usage && data.usage.total_tokens) {
+                        totalTokens = data.usage.total_tokens;
+                    }
+
+                    if (!data.thought && !data.tool_call) {
+                        div.className += ' log-system';
+                        div.innerText = 'System event detected.';
+                    }
+
                     logView.appendChild(div);
                 } catch(e) {}
             });
+            
+            tokenDisplay.innerText = totalTokens.toLocaleString();
             logView.scrollTop = logView.scrollHeight;
         }
 
