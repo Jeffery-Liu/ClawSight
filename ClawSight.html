@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ClawSight Telemetry v1.1</title>
+    <title>ClawSight Telemetry v1.2</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
     <style>
         :root {
-            --bg-color: #121214;
-            --card-bg: #1e1e22;
+            --bg-color: #0d0d0f;
+            --card-bg: #16161a;
             --text-main: #e0e0e0;
-            --text-dim: #909090;
+            --text-dim: #707075;
             --accent: #00ffcc;
             --danger: #ff4d4d;
-            --warning: #ffcc00;
+            --border: #2a2a2e;
         }
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
             margin: 0;
@@ -25,177 +26,157 @@
             overflow: hidden;
         }
         #header {
-            padding: 12px 20px;
-            background: #1a1a1d;
-            border-bottom: 1px solid #333;
+            padding: 15px 25px;
+            background: #111114;
+            border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        .status-badge {
-            display: flex;
-            align-items: center;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-        }
-        .dot {
-            width: 8px;
-            height: 8px;
-            background: var(--accent);
-            border-radius: 50%;
-            margin-right: 10px;
-            box-shadow: 0 0 10px var(--accent);
-        }
-        #main-container {
+        .logo { font-weight: 800; font-size: 18px; color: var(--accent); letter-spacing: 1px; }
+        
+        #main-layout {
             flex: 1;
-            padding: 20px;
             display: grid;
-            grid-template-columns: 1fr 300px;
-            gap: 20px;
+            grid-template-columns: 1fr 350px;
+            gap: 1px;
+            background: var(--border);
             overflow: hidden;
         }
-        .panel {
-            background: var(--card-bg);
-            border-radius: 12px;
-            border: 1px solid #333;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
+        .viewport { background: var(--bg-color); display: flex; flex-direction: column; overflow: hidden; }
+        .sidebar { background: #111114; display: flex; flex-direction: column; padding: 20px; gap: 20px; border-left: 1px solid var(--border); }
+        
         .panel-header {
-            padding: 10px 15px;
-            background: rgba(255,255,255,0.03);
-            border-bottom: 1px solid #333;
-            font-size: 12px;
-            font-weight: bold;
+            padding: 10px 20px;
+            font-size: 11px;
+            font-weight: 700;
             text-transform: uppercase;
             color: var(--text-dim);
-            display: flex;
-            justify-content: space-between;
+            letter-spacing: 2px;
+            border-bottom: 1px solid var(--border);
         }
-        #log-container {
-            flex: 1;
-            padding: 15px;
-            font-family: 'Fira Code', 'Courier New', monospace;
-            font-size: 13px;
-            overflow-y: auto;
-            line-height: 1.6;
-        }
-        .log-entry { margin-bottom: 8px; border-left: 2px solid #444; padding-left: 10px; }
-        .log-thought { color: var(--accent); }
-        .log-action { color: #88ccff; font-style: italic; }
-        
-        .metric-row {
-            padding: 15px;
-            border-bottom: 1px solid #333;
-        }
-        .metric-value { font-size: 24px; font-weight: bold; color: var(--accent); }
-        .metric-label { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 
-        #drop-zone {
+        #log-view { flex: 1; padding: 20px; overflow-y: auto; font-family: 'Consolas', monospace; font-size: 13px; line-height: 1.6; }
+        .log-line { margin-bottom: 10px; padding-left: 15px; border-left: 1px solid #333; }
+        .log-thought { color: var(--accent); font-weight: bold; }
+        .log-tool { color: #cc99ff; }
+
+        #viz-view { height: 300px; padding: 20px; background: #000; border-top: 1px solid var(--border); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+
+        .stat-card { background: var(--card-bg); padding: 15px; border-radius: 8px; border: 1px solid var(--border); }
+        .stat-val { font-size: 22px; font-weight: 700; color: var(--accent); }
+        .stat-lbl { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+
+        #file-selector-container {
             position: fixed;
-            bottom: 20px;
-            right: 20px;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .mount-btn {
             background: var(--accent);
             color: #000;
-            padding: 10px 20px;
-            border-radius: 30px;
-            font-size: 12px;
-            font-weight: bold;
+            padding: 15px 40px;
+            border-radius: 4px;
+            font-weight: 800;
             cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-            transition: transform 0.2s;
+            border: none;
+            font-size: 14px;
         }
-        #drop-zone:hover { transform: scale(1.05); }
-        input[type="file"] { display: none; }
     </style>
 </head>
 <body>
+
+    <div id="file-selector-container">
+        <h2 style="color:var(--accent)">CLAWSIGHT ENGINE v1.2</h2>
+        <p style="color:var(--text-dim); margin-bottom: 30px;">Security Check: Please select your OpenClaw session log to begin telemetry.</p>
+        <button class="mount-btn" onclick="document.getElementById('hidden-input').click()">SELECT SESSION LOG (.jsonl)</button>
+        <input type="file" id="hidden-input" style="display:none" accept=".jsonl">
+        <p style="font-size:10px; margin-top: 20px; color: #555;">(Logs are usually found in .openclaw/sessions/)</p>
+    </div>
+
     <div id="header">
-        <div class="status-badge"><div class="dot"></div> CLAWSIGHT v1.1 <span style="margin-left:10px; font-size:10px; opacity:0.5;">ENGINE ACTIVE</span></div>
-        <div style="display:flex; gap: 20px;">
-            <div id="status-lamp" style="color: var(--accent);">● STANDBY</div>
-        </div>
+        <div class="logo">CLAWSIGHT</div>
+        <div id="connection-status" style="font-size:11px; color:var(--text-dim)">DISCONNECTED</div>
     </div>
 
-    <div id="main-container">
-        <div class="panel">
-            <div class="panel-header">
-                <span>Real-time Thought Stream</span>
-                <span id="file-name" style="font-weight:normal; text-transform:none;">No file mounted</span>
-            </div>
-            <div id="log-container">
-                <div style="color:var(--text-dim)">Waiting for log data... Please use the "Mount Log" button if auto-discovery is blocked by browser security.</div>
+    <div id="main-layout">
+        <div class="viewport">
+            <div class="panel-header">Autonomous Thought Stream</div>
+            <div id="log-view"></div>
+            <div class="panel-header">Workflow Pipeline Visualization</div>
+            <div id="viz-view">
+                <div class="mermaid">
+                    graph TD
+                    A[Start] --> B[Task In Progress]
+                    B --> C[Validation]
+                </div>
             </div>
         </div>
 
-        <div class="panel">
-            <div class="panel-header">Vital Metrics</div>
-            <div class="metric-row">
-                <div class="metric-value" id="token-display">0</div>
-                <div class="metric-label">Session Tokens</div>
+        <div class="sidebar">
+            <div class="stat-card">
+                <div class="stat-val" id="token-count">0</div>
+                <div class="stat-lbl">TOKENS CONSUMED</div>
             </div>
-            <div class="metric-row">
-                <div class="metric-value" id="task-progress">0%</div>
-                <div class="metric-label">Workflow Progress</div>
+            <div class="stat-card">
+                <div class="stat-val" id="health-pct">100%</div>
+                <div class="stat-lbl">AGENT LIKELIHOOD</div>
             </div>
-            <div class="metric-row">
-                <div id="build-status" style="color: var(--accent); font-weight:bold;">READY</div>
-                <div class="metric-label">Environment Status</div>
+            <div class="stat-card">
+                <div id="active-agent" style="font-weight:bold; color:var(--accent)">ORCHESTRATOR</div>
+                <div class="stat-lbl">ACTIVE IDENTITY</div>
             </div>
         </div>
     </div>
-
-    <label id="drop-zone" for="file-input">⚡ MOUNT OPENCLAW LOG (.jsonl)</label>
-    <input type="file" id="file-input" accept=".jsonl">
 
     <script>
-        const logContainer = document.getElementById('log-container');
-        const fileInput = document.getElementById('file-input');
-        const fileNameDisplay = document.getElementById('file-name');
+        const input = document.getElementById('hidden-input');
+        const selector = document.getElementById('file-selector-container');
+        const logView = document.getElementById('log-view');
+        const status = document.getElementById('connection-status');
 
-        fileInput.addEventListener('change', function(e) {
+        input.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            fileNameDisplay.innerText = file.name;
-            startPolling(file);
+            selector.style.display = 'none';
+            status.innerText = "STREAMING: " + file.name;
+            status.style.color = "var(--accent)";
+            startTail(file);
         });
 
-        function startPolling(file) {
-            logContainer.innerHTML = '<div style="color:var(--accent)">Connection established. Parsing stream...</div>';
+        function startTail(file) {
             const reader = new FileReader();
-            
             setInterval(() => {
-                // In a real standalone app, this would use a local File System API
-                // For a browser-run HTML, we re-read the blob to simulate live tailing
-                reader.onload = function(e) {
+                reader.onload = (e) => {
                     const lines = e.target.result.split('\n').filter(l => l.trim());
-                    renderLogs(lines.slice(-20)); // Show last 20 events
+                    processBatch(lines.slice(-30));
                 };
                 reader.readAsText(file);
-            }, 2000);
+            }, 1000);
         }
 
-        function renderLogs(lines) {
-            logContainer.innerHTML = '';
+        function processBatch(lines) {
+            logView.innerHTML = '';
             lines.forEach(line => {
                 try {
                     const data = JSON.parse(line);
-                    const entry = document.createElement('div');
-                    entry.className = 'log-entry';
-                    
-                    if (data.thought) {
-                        entry.innerHTML = `<span class="log-thought">[THOUGHT]</span> ${data.thought}`;
-                    } else if (data.tool_call) {
-                        entry.innerHTML = `<span class="log-action">[ACTION]</span> Invoking ${data.tool_call.name}`;
-                    } else {
-                        entry.innerHTML = `<span style="opacity:0.5">[SYSTEM]</span> Message Received`;
-                    }
-                    logContainer.appendChild(entry);
+                    const div = document.createElement('div');
+                    div.className = 'log-line';
+                    if (data.thought) div.innerHTML = `<span class="log-thought">THOUGHT:</span> ${data.thought}`;
+                    else if (data.tool_call) div.innerHTML = `<span class="log-tool">ACTION:</span> Calling ${data.tool_call.name}`;
+                    else div.style.opacity = '0.4', div.innerText = 'System message received.';
+                    logView.appendChild(div);
                 } catch(e) {}
             });
-            logContainer.scrollTop = logContainer.scrollHeight;
+            logView.scrollTop = logView.scrollHeight;
         }
+
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
     </script>
 </body>
 </html>
